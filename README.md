@@ -1,10 +1,9 @@
 # 🦾 ABB IRB-120 6-DOF Robotic Welding Control & Digital Twin
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?logo=github)](https://mithunyechuru.github.io/Industrial-Manipulator-Modeling-Adaptive-Control/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?logo=github)](https://mithunyechuru.github.io/Industrial-Manipulator-Modeling-Adaptive-Control/robotics.html)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-r128-black.svg?logo=three.js&logoColor=white)](https://threejs.org/)
 [![Chart.js](https://img.shields.io/badge/Chart.js-v4.4.1-FF6384.svg?logo=chart.js&logoColor=white)](https://www.chartjs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Robotics](https://img.shields.io/badge/Robotics-ABB%20IRB--120-orange.svg)](https://new.abb.com/products/robotics/industrial-robots/irb-120)
 
 > 🚀 **Public WebGL Live Demo**: Experience the 3D digital twin directly in your browser without any installation:  
@@ -168,7 +167,7 @@ Then navigate to: [http://localhost:8080/robotics.html](http://localhost:8080/ro
 
 Install required scientific Python dependencies:
 ```bash
-pip install -r requirements.txt
+pip install numpy pandas matplotlib seaborn
 ```
 
 Execute the full verification and analysis suite:
@@ -203,13 +202,9 @@ This executes:
 
 ```
 Industrial-Manipulator-Modeling-Adaptive-Control/
-├── index.html                           # Main entrypoint for GitHub Pages WebGL 3D Twin
-├── robotics.html                        # Standalone 3D Digital Twin & telemetry application
 ├── abb_irb120_6dof_welding_dataset.csv   # High-resolution 200 Hz experimental dataset
 ├── ai_robotics_2026.py                  # Complete mathematical engine & simulation scripts
-├── requirements.txt                     # Python scientific computing dependencies
-├── .gitignore                           # Git ignore rules for Python, data science & OS files
-├── LICENSE                              # MIT License
+├── robotics.html                        # 3D WebGL Digital Twin & telemetry application
 └── README.md                            # Comprehensive technical documentation & guide
 ```
 
@@ -222,12 +217,6 @@ Industrial-Manipulator-Modeling-Adaptive-Control/
    - At $\Delta = 50\,\text{ms}$, standard PD feedback induces severe negative damping, driving the shoulder joint ($J_2$) into torque saturation limit cycles ($\pm 70\,\text{N}\cdot\text{m}$) and causing weld bead defects exceeding $15\,\text{mm}$.
 2. **Adaptive Supervision Performance**:
    - By estimating delay states and injecting active counter-torque, the Adaptive Supervisor reduces maximum tracking error at 50 ms delay from **$>15\,\text{mm}$** to **$<0.5\,\text{mm}$**, preventing actuator saturation and maintaining bead uniformity.
-
----
-
-## 📜 License
-
-This project is licensed under the [MIT License](LICENSE). Feel free to use, modify, and distribute for educational, academic, and industrial research.
 
 ---
 
