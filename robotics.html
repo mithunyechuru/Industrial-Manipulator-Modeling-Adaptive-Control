@@ -1,0 +1,1964 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ABB IRB-120 · 6-DOF Welding Digital Twin · AUTO-SEAM</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg: #0b0d11;
+            --panel: rgba(15, 18, 23, .86);
+            --stroke: rgba(255, 255, 255, .08);
+            --txt: #e8ecf1;
+            --dim: #8b94a3;
+            --acc: #ff7a1a;
+            --acc2: #35d0ff;
+            --red: #ff4d5e;
+            --green: #3ddc84;
+            --mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--txt);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-size: 13px
+        }
+
+        #stage {
+            position: fixed;
+            inset: 0;
+            z-index: 0
+        }
+
+        canvas {
+            display: block
+        }
+
+        /* ---------- top bar ---------- */
+        #topbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 46px;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 0 18px;
+            background: linear-gradient(180deg, rgba(9, 11, 14, .92), rgba(9, 11, 14, .45));
+            border-bottom: 1px solid var(--stroke);
+            backdrop-filter: blur(10px)
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            letter-spacing: .04em
+        }
+
+        .brand .logo {
+            width: 15px;
+            height: 15px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #ff9a2e, #ff5e00);
+            box-shadow: 0 0 12px rgba(255, 122, 26, .8)
+        }
+
+        .brand em {
+            font-style: normal;
+            color: var(--dim);
+            font-weight: 400;
+            font-size: 11px;
+            letter-spacing: .14em
+        }
+
+        #topbar .status {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--mono);
+            font-size: 11px;
+            letter-spacing: .12em
+        }
+
+        .led {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--acc2);
+            box-shadow: 0 0 10px var(--acc2);
+            transition: .3s
+        }
+
+        .led.weld {
+            background: #ff5316;
+            box-shadow: 0 0 12px #ff5316;
+            animation: blink .5s infinite alternate
+        }
+
+        .led.move {
+            background: #ffd23c;
+            box-shadow: 0 0 10px #ffd23c
+        }
+
+        .led.done {
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green)
+        }
+
+        @keyframes blink {
+            to {
+                opacity: .35
+            }
+        }
+
+        /* ---------- panels ---------- */
+        .panel {
+            position: fixed;
+            z-index: 9;
+            background: var(--panel);
+            backdrop-filter: blur(14px);
+            border: 1px solid var(--stroke);
+            border-radius: 14px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, .55)
+        }
+
+        #controls {
+            left: 16px;
+            top: 60px;
+            bottom: 16px;
+            width: 294px;
+            padding: 16px 16px 12px;
+            overflow-y: auto
+        }
+
+        /* ---------- RIGHT DASHBOARD (4 tabs) ---------- */
+        #dash {
+            right: 16px;
+            top: 60px;
+            bottom: 16px;
+            width: 384px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto
+        }
+
+        #dash::-webkit-scrollbar {
+            width: 6px
+        }
+
+        #dash::-webkit-scrollbar-thumb {
+            background: #2a303a;
+            border-radius: 3px
+        }
+
+        .tabs {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            flex: none;
+            user-select: none;
+            background: #14171c;
+            border: 1px solid var(--stroke);
+            border-radius: 10px;
+            padding: 3px
+        }
+
+        #tabPill {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: calc((100% - 6px)/4);
+            height: calc(100% - 6px);
+            border-radius: 8px;
+            background: linear-gradient(135deg, #ff9a2e, #ff5e00);
+            box-shadow: 0 0 16px rgba(255, 110, 20, .45);
+            transition: transform .32s cubic-bezier(.55, .1, .3, 1.15)
+        }
+
+        .tab {
+            position: relative;
+            z-index: 1;
+            background: none;
+            border: 0;
+            cursor: pointer;
+            padding: 7px 0 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            font-family: inherit;
+            color: var(--dim);
+            transition: color .25s
+        }
+
+        .tab span {
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: .1em
+        }
+
+        .tab em {
+            font-style: normal;
+            font-family: var(--mono);
+            font-size: 8px;
+            letter-spacing: .14em;
+            opacity: .75
+        }
+
+        .tab.active {
+            color: #241002
+        }
+
+        .view {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px
+        }
+
+        #controls::-webkit-scrollbar {
+            width: 6px
+        }
+
+        #controls::-webkit-scrollbar-thumb {
+            background: #2a303a;
+            border-radius: 3px
+        }
+
+        .sec {
+            margin-bottom: 16px
+        }
+
+        .sec-title {
+            font-size: 10px;
+            letter-spacing: .18em;
+            color: var(--dim);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .hint {
+            font-family: var(--mono);
+            color: #5b6472;
+            letter-spacing: 0
+        }
+
+        /* joints */
+        .joint {
+            margin-bottom: 11px;
+            transition: opacity .3s
+        }
+
+        .jrow {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 4px
+        }
+
+        .jrow label {
+            font-size: 10.5px;
+            letter-spacing: .08em;
+            color: #aeb6c2
+        }
+
+        .jrow output {
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--acc2)
+        }
+
+        #controls.locked .joint,
+        #controls.locked .wtypes,
+        #controls.locked .ghost {
+            opacity: .32;
+            pointer-events: none
+        }
+
+        /* sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            background: linear-gradient(90deg, var(--acc) var(--fill, 50%), #272d37 var(--fill, 50%))
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ffb066;
+            border: 2px solid #14171c;
+            box-shadow: 0 0 9px rgba(255, 122, 26, .9);
+            cursor: grab
+        }
+
+        input[type=range]::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ffb066;
+            border: 2px solid #14171c;
+            box-shadow: 0 0 9px rgba(255, 122, 26, .9)
+        }
+
+        #delay {
+            background: linear-gradient(90deg, var(--acc2) var(--fill, 0%), #272d37 var(--fill, 0%))
+        }
+
+        #delay::-webkit-slider-thumb {
+            background: #7fdcff;
+            box-shadow: 0 0 9px rgba(53, 208, 255, .9)
+        }
+
+        #delay::-moz-range-thumb {
+            background: #7fdcff
+        }
+
+        .ticks {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 7px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            color: #5b6472
+        }
+
+        .ticks span {
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 5px;
+            transition: .2s
+        }
+
+        .ticks span.on {
+            color: var(--acc2);
+            background: rgba(53, 208, 255, .1);
+            text-shadow: 0 0 8px rgba(53, 208, 255, .6)
+        }
+
+        .note {
+            font-size: 10.5px;
+            color: #5f6875;
+            margin-top: 8px;
+            line-height: 1.5
+        }
+
+        /* toggle */
+        .row-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .switch {
+            position: relative;
+            width: 42px;
+            height: 22px;
+            flex: none;
+            cursor: pointer
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0
+        }
+
+        .switch .knob {
+            position: absolute;
+            inset: 0;
+            border-radius: 22px;
+            background: #272d37;
+            border: 1px solid var(--stroke);
+            transition: .25s
+        }
+
+        .switch .knob::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #697380;
+            transition: .25s
+        }
+
+        .switch input:checked+.knob {
+            background: rgba(61, 220, 132, .22);
+            border-color: rgba(61, 220, 132, .5)
+        }
+
+        .switch input:checked+.knob::after {
+            transform: translateX(20px);
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green)
+        }
+
+        /* weld program segmented control */
+        .wtypes {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            background: #14171c;
+            border: 1px solid var(--stroke);
+            border-radius: 10px;
+            padding: 3px;
+            user-select: none;
+            gap: 2px
+        }
+
+        .wt {
+            background: none;
+            border: 0;
+            cursor: pointer;
+            padding: 8px 0 7px;
+            font-family: var(--mono);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: .1em;
+            color: var(--dim);
+            border-radius: 7px;
+            transition: .22s
+        }
+
+        .wt:hover {
+            color: #c8d0da
+        }
+
+        .wt.active {
+            background: linear-gradient(135deg, #ff9a2e, #ff5e00);
+            color: #241002;
+            box-shadow: 0 0 14px rgba(255, 110, 20, .45)
+        }
+
+        .ghost {
+            width: 100%;
+            margin-top: 8px;
+            padding: 7px;
+            background: none;
+            border: 1px dashed rgba(255, 255, 255, .18);
+            border-radius: 8px;
+            color: #8b94a3;
+            font-family: var(--mono);
+            font-size: 9.5px;
+            letter-spacing: .14em;
+            cursor: pointer;
+            transition: .2s
+        }
+
+        .ghost:hover {
+            color: var(--acc2);
+            border-color: rgba(53, 208, 255, .5)
+        }
+
+        /* run button */
+        #runBtn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 4px 0 14px;
+            background: linear-gradient(135deg, #ff9226, #ff5400);
+            color: #1a0c02;
+            font-weight: 800;
+            font-size: 12.5px;
+            letter-spacing: .1em;
+            font-family: var(--mono);
+            transition: .25s;
+            box-shadow: 0 4px 18px rgba(255, 100, 20, .35)
+        }
+
+        #runBtn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 7px 24px rgba(255, 100, 20, .5)
+        }
+
+        #runBtn:disabled {
+            cursor: default;
+            filter: saturate(.4) brightness(.8);
+            box-shadow: none
+        }
+
+        #runBtn.welding {
+            background: linear-gradient(135deg, #ff4d5e, #b71c30);
+            color: #fff;
+            animation: pulse 1s infinite
+        }
+
+        @keyframes pulse {
+            50% {
+                box-shadow: 0 0 22px rgba(255, 60, 80, .8)
+            }
+        }
+
+        /* telemetry */
+        .tele {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 7px;
+            margin-bottom: 10px
+        }
+
+        .tele>div {
+            background: rgba(255, 255, 255, .03);
+            border: 1px solid var(--stroke);
+            border-radius: 8px;
+            padding: 6px 8px
+        }
+
+        .tele span {
+            display: block;
+            font-size: 9px;
+            letter-spacing: .14em;
+            color: #5f6875
+        }
+
+        .tele b {
+            font-family: var(--mono);
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #dfe6ee
+        }
+
+        .foot {
+            font-size: 10px;
+            color: #4d5563;
+            text-align: center;
+            letter-spacing: .05em
+        }
+
+        /* charts */
+        .card {
+            background: rgba(255, 255, 255, .025);
+            border: 1px solid var(--stroke);
+            border-radius: 11px;
+            padding: 10px 12px 8px;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column
+        }
+
+        .card-h {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            flex: none;
+            font-size: 10px;
+            letter-spacing: .16em;
+            color: var(--dim)
+        }
+
+        .card-h b {
+            margin-left: auto;
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--txt);
+            font-weight: 600
+        }
+
+        .card-h b.o {
+            color: var(--acc)
+        }
+
+        .card-h b.c {
+            color: var(--acc2)
+        }
+
+        .card-h b.g {
+            color: var(--green)
+        }
+
+        #satBadge {
+            font-style: normal;
+            font-family: var(--mono);
+            font-size: 9px;
+            letter-spacing: .1em;
+            background: #3a0e14;
+            color: var(--red);
+            border: 1px solid rgba(255, 77, 94, .5);
+            border-radius: 4px;
+            padding: 2px 6px;
+            animation: blink .4s infinite alternate
+        }
+
+        .tchip {
+            font-style: normal;
+            font-family: var(--mono);
+            font-size: 8.5px;
+            letter-spacing: .12em;
+            color: var(--acc2);
+            background: rgba(53, 208, 255, .08);
+            border: 1px solid rgba(53, 208, 255, .35);
+            border-radius: 4px;
+            padding: 2px 6px
+        }
+
+        .chart-wrap {
+            flex: 1;
+            min-height: 76px;
+            position: relative
+        }
+
+        @media (max-width:1180px) {
+            #controls {
+                width: 246px
+            }
+
+            #dash {
+                width: 312px
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="stage"></div>
+
+    <header id="topbar">
+        <div class="brand"><span class="logo"></span>ABB IRB-120 <em>&nbsp;|&nbsp; 6-DOF WELDING DIGITAL TWIN ·
+                AUTO-SEAM</em></div>
+        <div class="status"><span class="led" id="led"></span><span id="stateTxt">MANUAL</span></div>
+    </header>
+
+    <aside id="controls" class="panel">
+        <div class="sec">
+            <div class="sec-title">JOINT CONTROL — MANUAL JOGGING <span class="hint">deg</span></div>
+            <div id="joints"></div>
+        </div>
+        <div class="sec">
+            <div class="sec-title">FIELD BUS · COMMUNICATION DELAY <span class="hint" id="delayTxt">0 ms</span></div>
+            <input id="delay" type="range" min="0" max="2" step="1" value="0">
+            <div class="ticks"><span data-v="0" class="on">0 ms</span><span data-v="1">20 ms</span><span data-v="2">50
+                    ms</span></div>
+            <div class="note">Lag injected into the TCP feedback path: <b style="color:#aeb6c2">e = x*<sub>t</sub> −
+                    x<sub>t−τ</sub></b>. Raise it and watch the tracking loop ring.</div>
+        </div>
+        <div class="sec row-between">
+            <div>
+                <div class="sec-title" style="margin-bottom:4px">GRAVITY COMPENSATION</div>
+                <div class="note" style="margin-top:0">Neutralizes G(q) in the τ₂ estimate.</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="antigrav"><span class="knob"></span></label>
+        </div>
+        <div class="sec">
+            <div class="sec-title">WELD SEAM SOURCE <span class="hint" id="wtHint">200 mm · straight</span></div>
+            <div class="wtypes" id="wtBar">
+                <button class="wt" data-w="auto">AUTO</button>
+                <button class="wt active" data-w="linear">LINE</button>
+                <button class="wt" data-w="arc">ARC</button>
+                <button class="wt" data-w="point">POINT</button>
+            </div>
+            <button class="ghost" id="newPart">⟲&nbsp;&nbsp;NEW RANDOM WORKPIECE</button>
+        </div>
+        <button id="runBtn">▶&nbsp;&nbsp;RUN WELD TRAJECTORY</button>
+        <div class="tele">
+            <div><span>TCP·X</span><b id="tx">0.000</b></div>
+            <div><span>TCP·Y</span><b id="ty">0.000</b></div>
+            <div><span>TCP·Z</span><b id="tz">0.000</b></div>
+            <div><span>|ERROR|</span><b id="terr" style="color:var(--acc)">0.0 mm</b></div>
+            <div><span>τ₂</span><b id="ttau" style="color:var(--acc2)">0.0 N·m</b></div>
+            <div><span>SEAM</span><b id="tprog">—</b></div>
+        </div>
+        <div class="foot">LMB orbit · WHEEL zoom · RMB pan<br>IK: damped pseudo-inverse Jᵀ(JJᵀ+λ²I)⁻¹<br>TCP reported in
+            Z-up base frame</div>
+    </aside>
+
+    <!-- ================= TABBED ANALYTICAL DASHBOARD ================= -->
+    <aside id="dash" class="panel">
+        <div class="tabs" id="tabBar">
+            <div id="tabPill"></div>
+            <button class="tab active" data-tab="dyn"><span>DYNAMICS</span><em>ID·FD</em></button>
+            <button class="tab" data-tab="kin"><span>KINEMATICS</span><em>FK·IK</em></button>
+            <button class="tab" data-tab="net"><span>COMMS</span><em>τ·eτ</em></button>
+            <button class="tab" data-tab="vis"><span>VISION</span><em>SCAN·FIT</em></button>
+        </div>
+
+        <!-- TAB 1 · DYNAMICS -->
+        <section id="viewDyn" class="view">
+            <div class="card">
+                <div class="card-h"><span>TRACKING ERROR · TARGET vs ACTUAL TCP</span><b class="o" id="errBadge">0.0
+                        mm</b></div>
+                <div class="chart-wrap"><canvas id="errC"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><span>INVERSE DYNAMICS · τ₂ = M(q)q̈ + G(q)</span><i id="satBadge" hidden>SAT</i><b
+                        class="c" id="tauBadge">0.0 N·m</b></div>
+                <div class="chart-wrap"><canvas id="tauC"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><span>FORWARD DYNAMICS · q̈₂ = M⁻¹(τ − G)</span><b class="o" id="accBadge">0.0</b>
+                </div>
+                <div class="chart-wrap"><canvas id="accC"></canvas></div>
+            </div>
+        </section>
+
+        <!-- TAB 2 · KINEMATICS -->
+        <section id="viewKin" class="view" style="display:none">
+            <div class="card">
+                <div class="card-h"><span>FORWARD KINEMATICS · TCP PATH</span><b class="o" id="tcpBadge">—</b></div>
+                <div class="chart-wrap"><canvas id="tcpC"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><span>INVERSE KINEMATICS · JOINT SPACE q₁–q₃</span><b class="c">deg</b></div>
+                <div class="chart-wrap"><canvas id="jntC"></canvas></div>
+            </div>
+        </section>
+
+        <!-- TAB 3 · COMMS (bar delay + banded error area) -->
+        <section id="viewNet" class="view" style="display:none">
+            <div class="card">
+                <div class="card-h"><span>COMMUNICATION DELAY · FIELD BUS</span><i class="tchip"
+                        id="tchip1">LINEAR</i><b class="c" id="commBadge">0.0 ms</b></div>
+                <div class="chart-wrap"><canvas id="commC"></canvas></div>
+                <div class="note" style="margin-top:6px">bar colour · <b style="color:#3ddc84">idle &lt;2 ms</b> · <b
+                        style="color:#ffc43c">20 ms</b> · <b style="color:#ff4d5e">50 ms</b></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><span>DELAY-INDUCED ERROR · eτ = |x(t) − x(t−τ)|</span><i class="tchip"
+                        id="tchip2">LINEAR</i><b class="o" id="delBadge">0.0 mm</b></div>
+                <div class="chart-wrap"><canvas id="delC"></canvas></div>
+                <div class="note" style="margin-top:6px">trace turns <b style="color:#ffc43c">amber &gt; 2 mm (WARN)</b>
+                    · <b style="color:#ff4d5e">red &gt; 5 mm (CRIT)</b></div>
+            </div>
+        </section>
+
+        <!-- TAB 4 · VISION (seam detection) -->
+        <section id="viewVis" class="view" style="display:none">
+            <div class="card">
+                <div class="card-h"><span>SEAM PROFILE · LASER SCAN vs GEOMETRIC FIT</span><i class="tchip"
+                        id="visChip">—</i><b class="g" id="visBadge">—</b></div>
+                <div class="chart-wrap"><canvas id="scanC"></canvas></div>
+            </div>
+            <div class="card">
+                <div class="card-h"><span>CLASSIFICATION · CONFIDENCE</span><b class="o" id="confBadge">—</b></div>
+                <div class="chart-wrap"><canvas id="confC"></canvas></div>
+                <div class="note" id="visNote" style="margin-top:6px">run AUTO → laser scan measures the seam, then line
+                    vs circle fitting identifies the weld type.</div>
+            </div>
+        </section>
+    </aside>
+
+    <script>
+        /* =====================================================================
+           0 · BASICS — renderer, scene, camera, lights, grid
+        ===================================================================== */
+        const stage = document.getElementById('stage');
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        stage.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0b0d11);
+        scene.fog = new THREE.Fog(0x0b0d11, 6, 15);
+
+        const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, .05, 60);
+        camera.position.set(1.45, 1.05, 1.55);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(.34, .32, 0);
+        controls.enableDamping = true; controls.dampingFactor = .08;
+        controls.maxPolarAngle = Math.PI / 2 - .02;
+        controls.minDistance = .35; controls.maxDistance = 7;
+
+        scene.add(new THREE.HemisphereLight(0x9fb4cc, 0x14171c, .55));
+        const key = new THREE.DirectionalLight(0xffffff, 1.05);
+        key.position.set(2.2, 3.4, 1.6); key.castShadow = true;
+        key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004; key.shadow.radius = 4;
+        Object.assign(key.shadow.camera, { left: -1.6, right: 1.6, top: 1.6, bottom: -1.6, far: 9 });
+        scene.add(key);
+        const rim = new THREE.DirectionalLight(0x4d7cff, .35); rim.position.set(-2.5, 1.6, -2); scene.add(rim);
+        const warm = new THREE.PointLight(0xff9a3c, .35, 3.5); warm.position.set(.6, .55, .5); scene.add(warm);
+
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 9),
+            new THREE.MeshStandardMaterial({ color: 0x11141a, roughness: .95, metalness: .05 }));
+        floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+        const grid = new THREE.GridHelper(6, 60, 0x3d5a78, 0x1d2733);
+        grid.material.transparent = true; grid.material.opacity = .5; grid.position.y = .002; scene.add(grid);
+
+        const ring = new THREE.Mesh(new THREE.RingGeometry(.52, .545, 80),
+            new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: .16, side: THREE.DoubleSide }));
+        ring.rotation.x = -Math.PI / 2; ring.position.y = .003; scene.add(ring);
+
+        addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+
+        /* =====================================================================
+           1 · PROCEDURAL ABB IRB-120 — nested THREE.Group FK chain
+        ===================================================================== */
+        const MAT = {
+            orange: new THREE.MeshStandardMaterial({ color: 0xf07800, roughness: .42, metalness: .25 }),
+            orangeD: new THREE.MeshStandardMaterial({ color: 0xc75f00, roughness: .5, metalness: .25 }),
+            dark: new THREE.MeshStandardMaterial({ color: 0x2b2f36, roughness: .55, metalness: .6 }),
+            black: new THREE.MeshStandardMaterial({ color: 0x141519, roughness: .38, metalness: .75 }),
+            steel: new THREE.MeshStandardMaterial({ color: 0x39404a, roughness: .5, metalness: .7 }),
+        };
+        const cyl = (rt, rb, h, mat, s = 28) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, s), mat); m.castShadow = m.receiveShadow = true; return m; };
+        const box = (w, h, d, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; };
+
+        const L2 = .30, L3A = .22, D5 = .05;
+
+        const robot = new THREE.Group(); scene.add(robot);
+
+        const bp = cyl(.115, .128, .028, MAT.dark); bp.position.y = .014; robot.add(bp);
+
+        const j1 = new THREE.Group(); j1.position.y = .05; robot.add(j1);
+        const bcol = cyl(.082, .092, .085, MAT.orange); bcol.position.y = .0425; j1.add(bcol);
+        const collar = cyl(.058, .068, .05, MAT.dark); collar.position.y = .11; j1.add(collar);
+
+        const j2 = new THREE.Group(); j2.position.set(.02, .24, 0); j1.add(j2);
+        const shoulder = cyl(.052, .052, .15, MAT.dark); shoulder.rotation.x = Math.PI / 2; j2.add(shoulder);
+        const upArm = box(.095, L2, .078, MAT.orange); upArm.position.y = L2 / 2; j2.add(upArm);
+        const rib1 = box(.106, .24, .02, MAT.orangeD); rib1.position.set(0, L2 / 2 - .02, .048); j2.add(rib1);
+        const rib2 = rib1.clone(); rib2.position.z = -.048; j2.add(rib2);
+
+        const j3 = new THREE.Group(); j3.position.y = L2; j2.add(j3);
+        const elbow = cyl(.047, .047, .125, MAT.dark); elbow.rotation.x = Math.PI / 2; j3.add(elbow);
+        const fore = box(.078, L3A, .064, MAT.orange); fore.position.y = L3A / 2; j3.add(fore);
+        const cable = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0, .02, .045), new THREE.Vector3(0, .10, .075),
+            new THREE.Vector3(0, .18, .058), new THREE.Vector3(0, .245, .02)]), 24, .007, 8), MAT.black);
+        cable.castShadow = true; j3.add(cable);
+
+        const j4 = new THREE.Group(); j4.position.y = L3A; j3.add(j4);
+        const j4h = cyl(.037, .037, .07, MAT.dark); j4h.position.y = .03; j4.add(j4h);
+
+        const j5 = new THREE.Group(); j5.position.y = D5; j4.add(j5);
+        const wrist = cyl(.031, .031, .09, MAT.dark); wrist.rotation.x = Math.PI / 2; j5.add(wrist);
+        const tFlange = cyl(.02, .02, .03, MAT.black); tFlange.position.y = .015; j5.add(tFlange);
+        const bend = new THREE.Mesh(new THREE.TorusGeometry(.038, .0115, 12, 22, Math.PI / 2), MAT.black);
+        bend.rotation.z = Math.PI / 2; bend.position.set(.038, .03, 0); bend.castShadow = true; j5.add(bend);
+
+        const j6 = new THREE.Group(); j6.position.set(.038, .068, 0); j5.add(j6);
+        const nozzle = cyl(.0105, .0105, .05, MAT.black); nozzle.rotation.z = -Math.PI / 2; nozzle.position.x = .025; j6.add(nozzle);
+        const tip = new THREE.Mesh(new THREE.CylinderGeometry(.0035, .0085, .02, 14), MAT.black);
+        tip.rotation.z = -Math.PI / 2; tip.position.x = .06; tip.castShadow = true; j6.add(tip);
+        const copper = cyl(.004, .004, .012, new THREE.MeshStandardMaterial({ color: 0xc9894b, roughness: .35, metalness: .9 }), 12);
+        copper.rotation.z = -Math.PI / 2; copper.position.x = .066; j6.add(copper);
+
+        const tcpObj = new THREE.Object3D(); tcpObj.position.set(.072, 0, 0); j6.add(tcpObj);
+        const tcpDot = new THREE.Mesh(new THREE.SphereGeometry(.004, 10, 10),
+            new THREE.MeshBasicMaterial({ color: 0xffe0b3 })); tcpObj.add(tcpDot);
+        const arcGlow = new THREE.Mesh(new THREE.SphereGeometry(.013, 12, 12),
+            new THREE.MeshBasicMaterial({ color: 0xffc36b, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+        tcpObj.add(arcGlow);
+        const arcLight = new THREE.PointLight(0xffa14d, 0, 1.2); tcpObj.add(arcLight);
+
+        function setJoints(qs) {
+            j1.rotation.y = qs[0];
+            j2.rotation.z = -qs[1];
+            j3.rotation.z = -qs[2];
+            j4.rotation.y = qs[3];
+            j5.rotation.z = -qs[4];
+            j6.rotation.x = qs[5];
+        }
+
+        /* =====================================================================
+           2 · WORK CELL — seams (LINEAR / ARC / POINT) + AUTO-dim visuals
+        ===================================================================== */
+        const SEAM_A = new THREE.Vector3(.42, .048, -.10);
+        const SEAM_B = new THREE.Vector3(.42, .048, .10);
+        const SEAM_LEN = SEAM_B.distanceTo(SEAM_A);
+        const SEAM_DIR = SEAM_B.clone().sub(SEAM_A).normalize();
+
+        const ARC_R = .15, ARC_CX = .42 - Math.sqrt(ARC_R * ARC_R - .01), ARC_HA = Math.asin(.10 / ARC_R);
+        const ARC_LEN = ARC_R * 2 * ARC_HA;
+        function pathLinear(s, out) { out.copy(SEAM_A).addScaledVector(SEAM_DIR, s); return out; }
+        function pathArc(s, out) {
+            const phi = -ARC_HA + (s / ARC_LEN) * 2 * ARC_HA;
+            out.set(ARC_CX + ARC_R * Math.cos(phi), .048, ARC_R * Math.sin(phi)); return out;
+        }
+
+        const PT_N = 7, PT_DWELL = .8, PT_TRAVEL = .07;
+        const PT_PTS = Array.from({ length: PT_N }, (_, i) => new THREE.Vector3(.42, .048, -.10 + .20 * i / (PT_N - 1)));
+        const PT_MOVE = (.20 / (PT_N - 1)) / PT_TRAVEL;
+        const PT_TOTAL = PT_N * PT_DWELL + (PT_N - 1) * PT_MOVE;
+
+        const WTYPE = {
+            auto: { label: 'AUTO', hint: 'scan to identify' },
+            linear: { label: 'LINEAR', hint: '200 mm · straight' },
+            arc: { label: 'ARC', hint: '≈219 mm · R150 curve' },
+            point: { label: 'POINT', hint: '7 spots · 0.8 s dwell' }
+        };
+        let weldType = 'linear';        // program the robot will execute
+        let trueWeldType = 'linear';    // the physical part actually on the plate
+
+        const plate = box(.12, .012, .30, MAT.steel); plate.position.set(.42, .006, 0); scene.add(plate);
+
+        const seamGroup = new THREE.Group(); scene.add(seamGroup);
+        let seamHaloMesh = null, beadMesh = null, beadMode = 'scale', beadIdxTotal = 0;
+        const spotRings = [], spotDots = [];
+
+        function buildSeam(dimMode = false) {
+            while (seamGroup.children.length) {
+                const c = seamGroup.children.pop();
+                if (c.geometry) c.geometry.dispose();
+                if (c.material && c.material.dispose) c.material.dispose();
+            }
+            spotRings.length = 0; spotDots.length = 0;
+            seamHaloMesh = null; beadMesh = null; beadMode = 'scale'; beadIdxTotal = 0;
+
+            const t = weldType === 'auto' ? trueWeldType : weldType;   // part geometry
+
+            const endMarks = (pts) => pts.forEach(p => {
+                const e = new THREE.Mesh(new THREE.SphereGeometry(.005, 10, 10),
+                    new THREE.MeshBasicMaterial({ color: 0xff8a3c }));
+                e.position.set(p.x, .013, p.z); seamGroup.add(e);
+            });
+
+            if (t === 'linear') {
+                const glow = new THREE.Mesh(new THREE.BoxGeometry(.009, .003, .2),
+                    new THREE.MeshBasicMaterial({ color: 0xff5316 }));
+                glow.position.set(.42, .0128, 0); seamGroup.add(glow);
+                const halo = new THREE.Mesh(new THREE.PlaneGeometry(.06, .24),
+                    new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false }));
+                halo.rotation.x = -Math.PI / 2; halo.position.set(.42, .0142, 0); seamGroup.add(halo); seamHaloMesh = halo;
+                const bg = new THREE.BoxGeometry(.011, .004, .2); bg.translate(0, 0, .1);
+                beadMesh = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ color: 0xffc36b }));
+                beadMesh.position.set(.42, .0132, -.10); beadMesh.scale.z = .0001; beadMesh.visible = false; seamGroup.add(beadMesh);
+                endMarks([SEAM_A, SEAM_B]);
+            }
+            else if (t === 'arc') {
+                const pc = new THREE.CatmullRomCurve3(Array.from({ length: 25 }, (_, i) => {
+                    const p = pathArc(ARC_LEN * i / 24, new THREE.Vector3()); p.y = .013; return p;
+                }));
+                const glow = new THREE.Mesh(new THREE.TubeGeometry(pc, 64, .0045, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xff5316 })); seamGroup.add(glow);
+                const halo = new THREE.Mesh(new THREE.TubeGeometry(pc, 64, .013, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: .16, blending: THREE.AdditiveBlending, depthWrite: false }));
+                seamGroup.add(halo); seamHaloMesh = halo;
+                beadMesh = new THREE.Mesh(new THREE.TubeGeometry(pc, 64, .0055, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xffc36b }));
+                beadMesh.visible = false; beadMesh.geometry.setDrawRange(0, 0); seamGroup.add(beadMesh);
+                beadMode = 'range'; beadIdxTotal = 64 * 8 * 6;
+                endMarks([{ x: .42 + Math.sqrt(ARC_R * ARC_R - .01) - (.42 - ARC_CX) - Math.sqrt(ARC_R * ARC_R - .01) + (ARC_CX + ARC_R * Math.cos(ARC_HA)), y: 0, z: -.10 },
+                { x: ARC_CX + ARC_R * Math.cos(ARC_HA), y: 0, z: .10 }]);
+            }
+            else {
+                const glow = new THREE.Mesh(new THREE.BoxGeometry(.009, .003, .2),
+                    new THREE.MeshBasicMaterial({ color: 0xff5316, transparent: true, opacity: .55 }));
+                glow.position.set(.42, .0128, 0); seamGroup.add(glow);
+                const halo = new THREE.Mesh(new THREE.PlaneGeometry(.06, .24),
+                    new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: .14, blending: THREE.AdditiveBlending, depthWrite: false }));
+                halo.rotation.x = -Math.PI / 2; halo.position.set(.42, .0142, 0); seamGroup.add(halo); seamHaloMesh = halo;
+                PT_PTS.forEach(p => {
+                    const r = new THREE.Mesh(new THREE.RingGeometry(.006, .009, 20),
+                        new THREE.MeshBasicMaterial({ color: 0x35d0ff, transparent: true, opacity: .4, side: THREE.DoubleSide }));
+                    r.rotation.x = -Math.PI / 2; r.position.set(p.x, .0132, p.z); seamGroup.add(r); spotRings.push(r);
+                });
+            }
+
+            /* dim mode → the part is present but the program is "unknown" until scanned */
+            if (dimMode) {
+                seamGroup.traverse(c => {
+                    if (c.isMesh && c.material) {
+                        c.material.transparent = true;
+                        if (c.material.color) c.material.color.setHex(0x3a4756);
+                        c.material.opacity = Math.min(c.material.opacity !== undefined ? c.material.opacity : 1, .22);
+                    }
+                });
+            }
+        }
+        function addSpotDot(i) {
+            const p = PT_PTS[i];
+            const d = new THREE.Mesh(new THREE.SphereGeometry(.0065, 14, 12),
+                new THREE.MeshBasicMaterial({ color: 0xffc36b }));
+            d.position.set(p.x, .017, p.z); d.scale.setScalar(.25);
+            d.userData.t0 = simT; seamGroup.add(d); spotDots.push(d);
+        }
+        buildSeam(false);
+
+        const targetMark = new THREE.Mesh(new THREE.SphereGeometry(.011, 12, 10),
+            new THREE.MeshBasicMaterial({ color: 0x35d0ff, wireframe: true, transparent: true, opacity: .85 }));
+        targetMark.visible = false; scene.add(targetMark);
+
+        /* TCP trail */
+        const TRAILN = 180, trailPos = new Float32Array(TRAILN * 3);
+        const trailGeo = new THREE.BufferGeometry();
+        trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+        trailGeo.setDrawRange(0, 0);
+        const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0x35d0ff, transparent: true, opacity: .5 }));
+        trail.frustumCulled = false; scene.add(trail);
+        let trailCount = 0;
+        function trailReset() { trailCount = 0; trailGeo.setDrawRange(0, 0); }
+        function trailPush(p) {
+            trailPos.copyWithin(0, 3, (TRAILN - 1) * 3);
+            trailPos[(TRAILN - 1) * 3] = p.x; trailPos[(TRAILN - 1) * 3 + 1] = p.y; trailPos[(TRAILN - 1) * 3 + 2] = p.z;
+            trailCount = Math.min(trailCount + 1, TRAILN); trailGeo.setDrawRange(0, trailCount);
+            trailGeo.attributes.position.needsUpdate = true;
+        }
+
+        /* =====================================================================
+           2b · VISION HARDWARE — laser light-sheet, sample points, detection overlay
+        ===================================================================== */
+        const SCAN_POSE = new THREE.Vector3(.30, .34, 0);
+        const SCAN_N = 41, SCAN_SPAN = .23, SCAN_Y0 = -.115, SCAN_DUR = 2.4;
+
+        const laser = new THREE.Mesh(new THREE.PlaneGeometry(.10, .12),
+            new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: .32, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+        laser.rotation.y = -.4; laser.position.set(.385, .075, 0); laser.visible = false; scene.add(laser);
+        const laserCore = new THREE.Mesh(new THREE.BoxGeometry(.10, .0016, .0016),
+            new THREE.MeshBasicMaterial({ color: 0x9dffcf }));
+        laserCore.position.set(.385, .0135, 0); laserCore.visible = false; scene.add(laserCore);
+        const scanDot = new THREE.Mesh(new THREE.SphereGeometry(.005, 10, 10),
+            new THREE.MeshBasicMaterial({ color: 0xbaffdd }));
+        scanDot.visible = false; scene.add(scanDot);
+
+        const spArr = new Float32Array(SCAN_N * 3).fill(-100);
+        const spGeo = new THREE.BufferGeometry();
+        spGeo.setAttribute('position', new THREE.BufferAttribute(spArr, 3));
+        const scanPts = new THREE.Points(spGeo, new THREE.PointsMaterial({ color: 0x3ddc84, size: .012, transparent: true, opacity: .95 }));
+        scanPts.frustumCulled = false; scanPts.visible = false; scene.add(scanPts);
+
+        const detGroup = new THREE.Group(); scene.add(detGroup);
+        function clearDet() {
+            while (detGroup.children.length) {
+                const c = detGroup.children.pop();
+                if (c.geometry) c.geometry.dispose();
+                if (c.material && c.material.dispose) c.material.dispose();
+            }
+        }
+
+        /* =====================================================================
+           3 · SPARKS — additive particle system at the TCP
+        ===================================================================== */
+        function sparkTexture() {
+            const c = document.createElement('canvas'); c.width = c.height = 64;
+            const g = c.getContext('2d'), grd = g.createRadialGradient(32, 32, 0, 32, 32, 30);
+            grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(.35, 'rgba(255,220,150,.9)');
+            grd.addColorStop(1, 'rgba(255,120,0,0)');
+            g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(c);
+        }
+        const SN = 420;
+        const sPos = new Float32Array(SN * 3).fill(-100), sCol = new Float32Array(SN * 3),
+            sVel = new Float32Array(SN * 3), sLife = new Float32Array(SN),
+            sMax = new Float32Array(SN), sBase = new Float32Array(SN * 3);
+        const sGeo = new THREE.BufferGeometry();
+        sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+        sGeo.setAttribute('color', new THREE.BufferAttribute(sCol, 3));
+        const sparks = new THREE.Points(sGeo, new THREE.PointsMaterial({
+            map: sparkTexture(), size: .022, vertexColors: true, transparent: true,
+            blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+        }));
+        sparks.frustumCulled = false; scene.add(sparks);
+        let sHead = 0;
+        const PALETTE = [[1, .87, .4], [1, .62, .16], [1, .45, .1], [1, .75, .25]];
+        function emitSparks(origin, rate, dt) {
+            let n = rate * dt + (Math.random() < rate * dt % 1 ? 1 : 0);
+            while (n-->0) {
+                const i = (sHead++) % SN, i3 = i * 3;
+                sPos[i3] = origin.x + (Math.random() - .5) * .006;
+                sPos[i3 + 1] = origin.y + (Math.random() - .5) * .006;
+                sPos[i3 + 2] = origin.z + (Math.random() - .5) * .006;
+                const a = Math.random() * Math.PI * 2, r = .25 + Math.random() * .85;
+                sVel[i3] = Math.cos(a) * r; sVel[i3 + 2] = Math.sin(a) * r;
+                sVel[i3 + 1] = Math.random() < .22 ? .3 + Math.random() * .7 : -(.1 + Math.random() * 1.1);
+                sMax[i] = sLife[i] = .22 + Math.random() * .5;
+                const c = PALETTE[(Math.random() * PALETTE.length) | 0];
+                sBase[i3] = c[0]; sBase[i3 + 1] = c[1]; sBase[i3 + 2] = c[2];
+            }
+        }
+        function updateSparks(dt) {
+            for (let i = 0; i < SN; i++) {
+                if (sLife[i] <= 0) continue;
+                sLife[i] -= dt; const i3 = i * 3;
+                if (sLife[i] <= 0 || sPos[i3 + 1] < .012) {
+                    if (sPos[i3 + 1] < .012 && sVel[i3 + 1] < 0 && Math.random() < .5) {
+                        sPos[i3 + 1] = .013; sVel[i3 + 1] *= -.35; sVel[i3] *= .55; sVel[i3 + 2] *= .55; sLife[i] *= .6;
+                    } else { sLife[i] = 0; sPos[i3 + 1] = -100; continue; }
+                }
+                sVel[i3 + 1] -= 4.6 * dt;
+                const damp = 1 - 1.6 * dt;
+                sVel[i3] *= damp; sVel[i3 + 2] *= damp;
+                sPos[i3] += sVel[i3] * dt; sPos[i3 + 1] += sVel[i3 + 1] * dt; sPos[i3 + 2] += sVel[i3 + 2] * dt;
+                const f = Math.pow(sLife[i] / sMax[i], 1.5);
+                sCol[i3] = sBase[i3] * f; sCol[i3 + 1] = sBase[i3 + 1] * f; sCol[i3 + 2] = sBase[i3 + 2] * f;
+            }
+            sGeo.attributes.position.needsUpdate = true;
+            sGeo.attributes.color.needsUpdate = true;
+        }
+
+        /* =====================================================================
+           4 · MATH ENGINE — FK, Jacobian, IK, delay buffer, G(q), τ₂ / q̈₂
+        ===================================================================== */
+        const DEG = Math.PI / 180;
+        const Q_MAXD = [170, 130, 160, 200, 120, 400];
+        const Q_LIM = Q_MAXD.map(d => d * DEG);
+        const HOME = [20, 30, 55, 0, 5, 0].map(d => d * DEG);
+        const q = new Float64Array(HOME);
+        const qd = new Float64Array(6), qdd = new Float64Array(6);
+        const qCmd = new Float64Array(HOME);
+
+        const TJ = .055, K_IK = 20, LAM = .03, DQ_MAX = 3.0, QD_MAX = 4, KS = 140, KD = 24, I2 = .9;
+
+        const V0 = new THREE.Vector3(), V1 = new THREE.Vector3(), V2 = new THREE.Vector3(),
+            V3 = new THREE.Vector3(), Ve = new THREE.Vector3();
+        function fkTCP(qs, out) { setJoints(qs); return tcpObj.getWorldPosition(out); }
+
+        const Jm = Array.from({ length: 6 }, () => new THREE.Vector3());
+        function jacobian(qs) {
+            fkTCP(qs, V0);
+            const eps = 1e-3;
+            for (let i = 0; i < 6; i++) {
+                const old = qs[i]; qs[i] = old + eps; fkTCP(qs, V1); qs[i] = old;
+                Jm[i].subVectors(V1, V0).divideScalar(eps);
+            }
+        }
+        function solve3(A, b) {
+            const M = [[...A[0], b[0]], [...A[1], b[1]], [...A[2], b[2]]];
+            for (let c = 0; c < 3; c++) {
+                let p = c; for (let r = c + 1; r < 3; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+                [M[c], M[p]] = [M[p], M[c]];
+                const d = M[c][c] || 1e-9;
+                for (let k = c; k < 4; k++) M[c][k] /= d;
+                for (let r = 0; r < 3; r++) if (r !== c) {
+                    const f = M[r][c];
+                    for (let k = c; k < 4; k++) M[r][k] -= f * M[c][k];
+                }
+            }
+            return [M[0][3], M[1][3], M[2][3]];
+        }
+        function resolvedRate(e, out) {
+            jacobian(q);
+            const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+            for (let i = 0; i < 6; i++) {
+                const c = Jm[i];
+                for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++)
+                    A[a][b] += c.getComponent(a) * c.getComponent(b);
+            }
+            for (let a = 0; a < 3; a++) A[a][a] += LAM * LAM;
+            const y = solve3(A, [K_IK * e.x, K_IK * e.y, K_IK * e.z]);
+            V3.set(y[0], y[1], y[2]);
+            let n = 0;
+            for (let i = 0; i < 6; i++) { out[i] = Jm[i].dot(V3); n += out[i] * out[i]; }
+            n = Math.sqrt(n);
+            if (n > DQ_MAX) { const s = DQ_MAX / n; for (let i = 0; i < 6; i++) out[i] *= s; }
+        }
+
+        const hist = []; let lastTCP = new THREE.Vector3();
+        function pushHist(t, p) {
+            hist.push({ t, p: p.clone() });
+            while (hist.length > 2 && hist[0].t < t - .8) hist.shift();
+        }
+        function sampleHist(ts) {
+            if (!hist.length) return lastTCP.clone();
+            for (let i = hist.length - 1; i >= 0; i--) {
+                if (hist[i].t <= ts) {
+                    const a = hist[i], b = hist[i + 1] || a;
+                    const f = b.t > a.t ? Math.min(1, (ts - a.t) / (b.t - a.t)) : 0;
+                    return a.p.clone().lerp(b.p, f);
+                }
+            }
+            return hist[0].p.clone();
+        }
+
+        function G2() {
+            const s2 = Math.sin(q[1]),
+                s23 = Math.sin(q[1] + q[2]),
+                s235 = Math.sin(q[1] + q[2] + q[4]);
+            return 9.81 * (4.5 * s2 + 1.785 * s23 - .175 * s235);
+        }
+
+        /* =====================================================================
+           4b · SEAM DETECTION — profilometry model + geometric classifier
+        ===================================================================== */
+        function gauss() {
+            let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random();
+            return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+        }
+        /* groove lateral offset (m) at station y, or null if no groove */
+        function groovesAt(y) {
+            if (trueWeldType === 'point') {
+                for (const p of PT_PTS) if (Math.abs(y - p.z) < .006) return { off: 0 };
+                return null;
+            }
+            if (Math.abs(y) > .10) return null;
+            if (trueWeldType === 'linear') return { off: 0 };
+            return { off: Math.sqrt(ARC_R * ARC_R - y * y) - (.42 - ARC_CX) };   // arc: curved profile
+        }
+        function measureProfile(y) {
+            const g = groovesAt(y);
+            if (!g) return null;
+            let off = g.off + gauss() * .0015;                 // σ = 1.5 mm sensor noise
+            if (Math.random() < .03) off += (Math.random() < .5 ? -1 : 1) * .006;  // 3% outliers
+            return off;
+        }
+        /* least-squares line: off = a·y + b (mm units) */
+        function fitLineRMS(pts) {
+            const n = pts.length; let my = 0, mo = 0;
+            pts.forEach(p => { my += p.y; mo += p.off; }); my /= n; mo /= n;
+            let num = 0, den = 0;
+            pts.forEach(p => { num += (p.y - my) * (p.off - mo); den += (p.y - my) * (p.y - my); });
+            const a = den > 1e-9 ? num / den : 0, b = mo - a * my;
+            let s = 0; pts.forEach(p => { const e = p.off - (a * p.y + b); s += e * e; });
+            return { a, b, rms: Math.sqrt(s / n) };
+        }
+        /* Kasa algebraic circle fit: u²+z² + D·u + E·z + F = 0 (mm units) */
+        function fitCircleRMS(pts) {
+            const n = pts.length;
+            if (n < 6) return { cu: 0, cz: 0, R: 0, rms: 99, branch: 1, zmin: -100, zmax: 100 };
+            let Suu = 0, Szz = 0, Suz = 0, Su = 0, Sz = 0, bu = 0, bz = 0, b1 = 0;
+            pts.forEach(p => {
+                const u = p.off, z = p.y, qq = u * u + z * z;
+                Suu += u * u; Szz += z * z; Suz += u * z; Su += u; Sz += z;
+                bu -= u * qq; bz -= z * qq; b1 -= qq;
+            });
+            const D = solve3([[Suu, Suz, Su], [Suz, Szz, Sz], [Su, Sz, n]], [bu, bz, b1]);
+            const cu = -D[0] / 2, cz = -D[1] / 2, R2 = cu * cu + cz * cz - D[2];
+            if (!(R2 > 1e-6)) return { cu, cz, R: 0, rms: 99, branch: 1, zmin: -100, zmax: 100 };
+            const R = Math.sqrt(R2);
+            let s = 0, br = 0;
+            pts.forEach(p => { const d = Math.hypot(p.off - cu, p.y - cz); s += (d - R) * (d - R); br += Math.sign(p.off - cu) || 0; });
+            const ys = pts.map(p => p.y);
+            return {
+                cu, cz, R, rms: Math.sqrt(s / n), branch: br >= 0 ? 1 : -1,
+                zmin: Math.min(...ys), zmax: Math.max(...ys)
+            };
+        }
+        function classify() {
+            const det = scanSamples.filter(s => s.off !== null);
+            const cov = det.length / SCAN_N;
+            let res;
+            if (cov < .40) {
+                /* sparse groove hits at discrete stations → spot welds */
+                const ys = det.map(d => d.y).sort((a, b) => a - b);
+                const clusters = []; let cur = [ys[0]];
+                for (let i = 1; i < ys.length; i++) {
+                    if (ys[i] - ys[i - 1] > .015) { clusters.push(cur.reduce((a, b) => a + b, 0) / cur.length); cur = []; }
+                    cur.push(ys[i]);
+                }
+                if (cur.length) clusters.push(cur.reduce((a, b) => a + b, 0) / cur.length);
+                const pPt = Math.min(.99, .78 + .5 * cov), r = (1 - pPt) / 2;
+                res = {
+                    type: 'point', conf: pPt, pLin: r, pArc: r, pPt, clusters,
+                    note: `coverage ${(cov * 100) | 0}% · ${clusters.length} discrete seams detected`
+                };
+            } else {
+                const dmm = det.map(p => ({ y: p.y * 1000, off: p.off * 1000 }));
+                const L = fitLineRMS(dmm), C = fitCircleRMS(dmm);
+                let type, pLin, pArc;
+                if (C.rms < L.rms * .7) {                         /* circle wins decisively */
+                    type = 'arc';
+                    pArc = Math.max(.6, Math.min(.99, 1 - C.rms / Math.max(L.rms, .001)));
+                    pLin = Math.min(.35, 1 - pArc);
+                } else {                                        /* parsimony → simplest model */
+                    type = 'linear';
+                    pLin = Math.max(.6, Math.min(.99, .65 + .35 * Math.max(0, (C.rms - L.rms)) / Math.max(C.rms, .001)));
+                    pArc = Math.min(.35, 1 - pLin);
+                }
+                res = {
+                    type, conf: Math.max(pLin, pArc), pLin, pArc, pPt: Math.max(.02, .4 - cov), L, C,
+                    note: `coverage ${(cov * 100) | 0}% · line RMS ${L.rms.toFixed(1)} mm · circle RMS ${C.rms.toFixed(1)} mm`
+                };
+            }
+            detResult = res;
+            weldType = res.type;                       /* robot now executes what it detected */
+            buildSeam(false);                        /* reveal the identified seam          */
+            drawDetectionOverlay();
+
+            /* vision charts */
+            if (res.type !== 'point') {
+                scanChart.data.datasets[1].data = [
+                    { x: -115, y: (res.L.a * -115 + res.L.b) }, { x: 115, y: (res.L.a * 115 + res.L.b) }];
+                const cf = [], { cu, cz, R, branch, zmin, zmax } = res.C;
+                for (let i = 0; i <= 30; i++) {
+                    const z = zmin + (zmax - zmin) * i / 30, d2 = R * R - (z - cz) * (z - cz);
+                    if (d2 > 0) cf.push({ x: z, y: cu + branch * Math.sqrt(d2) });
+                }
+                scanChart.data.datasets[2].data = cf;
+            }
+            scanChart.update('none');
+            confChart.data.datasets[0].data =
+                [Math.round(res.pLin * 100), Math.round(res.pArc * 100), Math.round(res.pPt * 100)];
+            confChart.data.datasets[0].backgroundColor =
+                res.type === 'linear' ? ['#ff7a1a', '#39424e', '#39424e'] :
+                    res.type === 'arc' ? ['#39424e', '#ff7a1a', '#39424e'] : ['#39424e', '#39424e', '#ff7a1a'];
+            confChart.update('none');
+            $('visBadge').textContent = `${WTYPE[res.type].label} · ${Math.round(res.conf * 100)}%`;
+            $('confBadge').textContent = `${Math.round(res.conf * 100)}%`;
+            $('visNote').textContent = res.note;
+
+            weldDur = res.type === 'point' ? PT_TOTAL : (res.type === 'arc' ? ARC_LEN : SEAM_LEN) / .05;
+            updateTypeChips(WTYPE[res.type].label);
+            document.getElementById('wtHint').textContent =
+                `auto → ${WTYPE[res.type].label.toLowerCase()} · ${Math.round(res.conf * 100)}% conf`;
+        }
+        function drawDetectionOverlay() {
+            clearDet();
+            if (!detResult) return;
+            if (detResult.type === 'point') {
+                detResult.clusters.forEach(cy => {
+                    const r = new THREE.Mesh(new THREE.RingGeometry(.0065, .010, 22),
+                        new THREE.MeshBasicMaterial({ color: 0x3ddc84, transparent: true, opacity: .85, side: THREE.DoubleSide }));
+                    r.rotation.x = -Math.PI / 2; r.position.set(.42, .0135, cy); detGroup.add(r);
+                });
+                return;
+            }
+            const pts = [];
+            if (detResult.type === 'linear') {
+                [-115, 115].forEach(zm => pts.push(new THREE.Vector3(.42 + (detResult.L.a * zm + detResult.L.b) / 1000, .0135, zm / 1000)));
+            } else {
+                const { cu, cz, R, branch, zmin, zmax } = detResult.C;
+                for (let i = 0; i <= 30; i++) {
+                    const zm = zmin + (zmax - zmin) * i / 30, d2 = R * R - (zm - cz) * (zm - cz);
+                    if (d2 > 0) pts.push(new THREE.Vector3(.42 + (cu + branch * Math.sqrt(d2)) / 1000, .0135, zm / 1000));
+                }
+            }
+            detGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+                new THREE.LineBasicMaterial({ color: 0x3ddc84 })));
+        }
+
+        /* =====================================================================
+           5 · UI — sliders, delay, antigravity, weld source, run button
+        ===================================================================== */
+        const JOINTS = [
+            ['J1 · BASE SLEW', -170, 170, 20], ['J2 · SHOULDER', -100, 130, 30],
+            ['J3 · ELBOW', -160, 160, 55], ['J4 · FOREARM ROLL', -200, 200, 0],
+            ['J5 · WRIST PITCH', -120, 120, 5], ['J6 · TORCH ROLL', -400, 400, 0]];
+        const jointsHost = document.getElementById('joints'), sliders = [], outs = [];
+        JOINTS.forEach(([name, min, max, init], i) => {
+            const w = document.createElement('div'); w.className = 'joint';
+            w.innerHTML = `<div class="jrow"><label>${name}</label><output>${init.toFixed(1)}°</output></div>
+  <input type="range" min="${min}" max="${max}" step="0.5" value="${init}">`;
+            jointsHost.appendChild(w);
+            const inp = w.querySelector('input'), out = w.querySelector('output');
+            sliders[i] = inp; outs[i] = out;
+            const fill = () => { inp.style.setProperty('--fill', (inp.value - min) / (max - min) * 100 + '%'); };
+            fill();
+            inp.addEventListener('input', () => {
+                if (mode === 'weld') return;
+                qCmd[i] = inp.value * DEG; out.textContent = (+inp.value).toFixed(1) + '°'; fill();
+            });
+        });
+        function syncSlidersToPose() {
+            for (let i = 0; i < 6; i++) {
+                const d = q[i] / DEG;
+                sliders[i].value = d; outs[i].textContent = d.toFixed(1) + '°';
+                sliders[i].style.setProperty('--fill', (d - JOINTS[i][1]) / (JOINTS[i][2] - JOINTS[i][1]) * 100 + '%');
+                qCmd[i] = q[i];
+            }
+        }
+
+        const DELAYS = [0, 20, 50]; let delayMs = 0;
+        const delayInp = document.getElementById('delay'), delayTxt = document.getElementById('delayTxt');
+        const ticks = [...document.querySelectorAll('.ticks span')];
+        function setDelay(v) {
+            delayInp.value = v; delayMs = DELAYS[v];
+            delayTxt.textContent = delayMs + ' ms';
+            delayInp.style.setProperty('--fill', v / 2 * 100 + '%');
+            ticks.forEach((tk, i) => tk.classList.toggle('on', i === v));
+        }
+        delayInp.addEventListener('input', () => setDelay(+delayInp.value));
+        ticks.forEach(tk => tk.addEventListener('click', () => setDelay(+tk.dataset.v)));
+        setDelay(0);
+
+        let antigrav = false;
+        document.getElementById('antigrav').addEventListener('change', e => antigrav = e.target.checked);
+
+        const runBtn = document.getElementById('runBtn');
+        const runLabel = () => weldType === 'auto' ? '▶&nbsp;&nbsp;SCAN &amp; WELD' : '▶&nbsp;&nbsp;RUN WELD TRAJECTORY';
+
+        function updateTypeChips(lbl) {
+            $('tchip1').textContent = lbl; $('tchip2').textContent = lbl; $('visChip').textContent = lbl;
+        }
+        function setWeldType(t) {
+            if (mode === 'weld') return;
+            weldType = t;
+            document.querySelectorAll('.wt').forEach(b => b.classList.toggle('active', b.dataset.w === t));
+            if (t === 'auto') {
+                buildSeam(true); resetVision(); clearDet();
+                document.getElementById('wtHint').textContent = 'hidden program · scan to identify';
+            } else {
+                trueWeldType = t; buildSeam(false); resetVision(); clearDet();
+                document.getElementById('wtHint').textContent = WTYPE[t].hint;
+            }
+            updateTypeChips(WTYPE[t].label);
+            resetNetCharts();
+            runBtn.innerHTML = runLabel();
+        }
+        document.querySelectorAll('.wt').forEach(b => b.addEventListener('click', () => setWeldType(b.dataset.w)));
+        document.getElementById('newPart').addEventListener('click', () => {
+            if (mode === 'weld') return;
+            trueWeldType = ['linear', 'arc', 'point'][(Math.random() * 3) | 0];
+            setWeldType('auto');
+            document.getElementById('wtHint').textContent = 'new part loaded · scan to identify';
+        });
+
+        /* =====================================================================
+           6 · CHARTS — DYNAMICS / KINEMATICS / COMMS / VISION
+        ===================================================================== */
+        Chart.defaults.color = '#9aa4b2';
+        Chart.defaults.font.family = "'Cascadia Code','JetBrains Mono',Consolas,monospace";
+        Chart.defaults.font.size = 10;
+        const GRID = 'rgba(255,255,255,.05)';
+        const MAXPTS = 300;
+
+        function mkOpts(yTitle, yRange, xTitle = 't (s)') {
+            return {
+                animation: false, responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'nearest', intersect: false },
+                scales: {
+                    x: {
+                        type: 'linear', title: { display: true, text: xTitle }, ticks: { maxTicksLimit: 7 },
+                        grid: { color: GRID }
+                    },
+                    y: {
+                        title: { display: true, text: yTitle }, grid: { color: GRID },
+                        ...(yRange ? yRange : { suggestedMin: 0, suggestedMax: 5 })
+                    }
+                },
+                plugins: { legend: { labels: { boxWidth: 9, boxHeight: 2, usePointStyle: true, pointStyle: 'line' } } }
+            };
+        }
+
+        /* --- DYNAMICS --- */
+        const errChart = new Chart(document.getElementById('errC'), {
+            type: 'line', data: {
+                datasets: [
+                    { label: '|E|', data: [], borderColor: '#ff7a1a', borderWidth: 2.2, pointRadius: 0, tension: .25 },
+                    { label: 'Ex', data: [], borderColor: '#ff5c5c', borderWidth: 1, pointRadius: 0, tension: .3 },
+                    { label: 'Ey', data: [], borderColor: '#7dff8a', borderWidth: 1, pointRadius: 0, tension: .3 },
+                    { label: 'Ez', data: [], borderColor: '#6db4ff', borderWidth: 1, pointRadius: 0, tension: .3 }]
+            },
+            options: mkOpts('mm', { suggestedMin: -10, suggestedMax: 15 })
+        });
+
+        const tauChart = new Chart(document.getElementById('tauC'), {
+            type: 'line', data: {
+                datasets: [
+                    { label: 'τ₂', data: [], borderColor: '#35d0ff', borderWidth: 2, pointRadius: 0, tension: .3 },
+                    { label: '+75 N·m', data: [], borderColor: '#ff4d5e', borderDash: [6, 5], borderWidth: 1.4, pointRadius: 0 },
+                    { label: '−75 N·m', data: [], borderColor: '#ff4d5e', borderDash: [6, 5], borderWidth: 1.4, pointRadius: 0 }]
+            },
+            options: mkOpts('N·m', { min: -100, max: 100 })
+        });
+
+        const accChart = new Chart(document.getElementById('accC'), {
+            type: 'line', data: {
+                datasets: [
+                    { label: 'q̈₂', data: [], borderColor: '#b48cff', borderWidth: 2, pointRadius: 0, tension: .25 }]
+            },
+            options: mkOpts('rad/s²', { suggestedMin: -15, suggestedMax: 15 })
+        });
+
+        /* --- KINEMATICS --- */
+        const tcpChart = new Chart(document.getElementById('tcpC'), {
+            type: 'line', data: {
+                datasets: [
+                    { label: 'X', data: [], borderColor: '#ff5c5c', borderWidth: 1.6, pointRadius: 0, tension: .3 },
+                    { label: 'Y', data: [], borderColor: '#7dff8a', borderWidth: 1.8, pointRadius: 0, tension: .3 },
+                    { label: 'Z', data: [], borderColor: '#6db4ff', borderWidth: 1.6, pointRadius: 0, tension: .3 }]
+            },
+            options: mkOpts('mm')
+        });
+
+        const jntChart = new Chart(document.getElementById('jntC'), {
+            type: 'line', data: {
+                datasets: [
+                    { label: 'q₁', data: [], borderColor: '#ff7a1a', borderWidth: 1.8, pointRadius: 0, tension: .3 },
+                    { label: 'q₂', data: [], borderColor: '#35d0ff', borderWidth: 1.8, pointRadius: 0, tension: .3 },
+                    { label: 'q₃', data: [], borderColor: '#ffd23c', borderWidth: 1.8, pointRadius: 0, tension: .3 }]
+            },
+            options: mkOpts('deg')
+        });
+
+        /* --- COMMS · severity-colored BAR chart for delay --- */
+        const commChart = new Chart(document.getElementById('commC'), {
+            type: 'bar', data: {
+                datasets: [
+                    { label: 'effective τ', data: [], backgroundColor: [], barPercentage: .9, categoryPercentage: .95 },
+                    { label: 'setpoint', type: 'line', data: [], borderColor: '#8b94a3', borderDash: [5, 4], borderWidth: 1.4, pointRadius: 0 }]
+            },
+            options: mkOpts('ms', { suggestedMin: 0, suggestedMax: 60 })
+        });
+
+        /* --- COMMS · threshold-banded filled AREA chart for eτ --- */
+        const delChart = new Chart(document.getElementById('delC'), {
+            type: 'line', data: {
+                datasets: [
+                    {
+                        label: 'eτ', data: [], borderColor: '#35d0ff', backgroundColor: 'rgba(53,208,255,.12)',
+                        fill: 'origin', borderWidth: 2, pointRadius: 0, tension: .2,
+                        segment: {
+                            borderColor: c => {
+                                const y = c.p1.parsed.y;
+                                return y > 5 ? '#ff4d5e' : (y > 2 ? '#ffc43c' : '#35d0ff');
+                            }
+                        }
+                    },
+                    { label: 'WARN 2 mm', data: [], borderColor: 'rgba(255,196,60,.5)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0 },
+                    { label: 'CRIT 5 mm', data: [], borderColor: 'rgba(255,77,94,.55)', borderDash: [4, 4], borderWidth: 1, pointRadius: 0 },
+                    { label: '|E| ref', data: [], borderColor: 'rgba(139,148,163,.45)', borderWidth: 1, pointRadius: 0, tension: .3 }]
+            },
+            options: mkOpts('mm', { suggestedMin: 0, suggestedMax: 16 })
+        });
+
+        /* --- VISION --- */
+        const scanChart = new Chart(document.getElementById('scanC'), {
+            type: 'scatter', data: {
+                datasets: [
+                    {
+                        label: 'measured', data: [], pointRadius: 2.6, pointStyle: 'circle',
+                        backgroundColor: '#35d0ff', borderColor: '#35d0ff'
+                    },
+                    {
+                        label: 'line fit', data: [], showLine: true, borderColor: 'rgba(232,236,241,.55)',
+                        borderDash: [5, 4], pointRadius: 0, borderWidth: 1.4
+                    },
+                    {
+                        label: 'circle fit', data: [], showLine: true, borderColor: '#b48cff',
+                        borderDash: [2, 3], pointRadius: 0, borderWidth: 1.4
+                    }]
+            },
+            options: {
+                animation: false, responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'nearest', intersect: false },
+                scales: {
+                    x: { type: 'linear', min: -120, max: 120, title: { display: true, text: 'station y (mm)' }, grid: { color: GRID } },
+                    y: {
+                        title: { display: true, text: 'lateral offset (mm)' }, grid: { color: GRID },
+                        suggestedMin: -40, suggestedMax: 40
+                    }
+                },
+                plugins: { legend: { labels: { boxWidth: 9, boxHeight: 2, usePointStyle: true, pointStyle: 'line' } } }
+            }
+        });
+
+        const confChart = new Chart(document.getElementById('confC'), {
+            type: 'bar',
+            data: {
+                labels: ['LINEAR', 'ARC', 'POINT'], datasets: [
+                    { data: [0, 0, 0], backgroundColor: ['#39424e', '#39424e', '#39424e'], borderRadius: 4 }]
+            },
+            options: {
+                indexAxis: 'y', animation: false, responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { min: 0, max: 100, title: { display: true, text: 'confidence (%)' }, grid: { color: GRID } },
+                    y: { grid: { display: false } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        /* --- tab switching (4 tabs) --- */
+        const tabBtns = [...document.querySelectorAll('.tab')];
+        const pill = document.getElementById('tabPill');
+        const views = {
+            dyn: document.getElementById('viewDyn'),
+            kin: document.getElementById('viewKin'),
+            net: document.getElementById('viewNet'),
+            vis: document.getElementById('viewVis')
+        };
+        const tabIdx = { dyn: 0, kin: 1, net: 2, vis: 3 };
+        const tabCharts = {
+            dyn: [errChart, tauChart, accChart], kin: [tcpChart, jntChart],
+            net: [commChart, delChart], vis: [scanChart, confChart]
+        };
+        let activeTab = 'dyn';
+        function switchTab(name) {
+            if (name === activeTab) return;
+            activeTab = name;
+            tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+            pill.style.transform = `translateX(${tabIdx[name] * 100}%)`;
+            Object.keys(views).forEach(k => views[k].style.display = k === name ? 'flex' : 'none');
+            tabCharts[name].forEach(c => { c.resize(); c.update('none'); });
+        }
+        tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+        /* --- data plumbing --- */
+        function trim(ds) { while (ds.length > MAXPTS) ds.shift(); }
+        function resetNetCharts() {
+            commChart.data.datasets[0].data.length = 0;
+            commChart.data.datasets[0].backgroundColor.length = 0;
+            commChart.data.datasets[1].data.length = 0;
+            delChart.data.datasets.forEach(d => d.data.length = 0);
+            commChart.update('none'); delChart.update('none');
+        }
+        function resetVision() {
+            scanChart.data.datasets.forEach(d => d.data.length = 0);
+            confChart.data.datasets[0].data = [0, 0, 0];
+            confChart.data.datasets[0].backgroundColor = ['#39424e', '#39424e', '#39424e'];
+            scanChart.update('none'); confChart.update('none');
+            $('visBadge').textContent = '—'; $('confBadge').textContent = '—'; $('visNote').textContent = '';
+            updateTypeChips('AUTO');
+        }
+        function pushSample(t, eT, ex, ey, ez, tau, acc, px, py, pz, j1d, j2d, j3d, lagErr, effDelay) {
+            const E = errChart.data.datasets, T = tauChart.data.datasets, A = accChart.data.datasets,
+                P = tcpChart.data.datasets, J = jntChart.data.datasets,
+                C = commChart.data.datasets, D = delChart.data.datasets;
+            E[0].data.push({ x: t, y: eT }); E[1].data.push({ x: t, y: ex });
+            E[2].data.push({ x: t, y: ey }); E[3].data.push({ x: t, y: ez });
+            T[0].data.push({ x: t, y: tau }); T[1].data.push({ x: t, y: 75 }); T[2].data.push({ x: t, y: -75 });
+            A[0].data.push({ x: t, y: acc });
+            P[0].data.push({ x: t, y: px }); P[1].data.push({ x: t, y: py }); P[2].data.push({ x: t, y: pz });
+            J[0].data.push({ x: t, y: j1d }); J[1].data.push({ x: t, y: j2d }); J[2].data.push({ x: t, y: j3d });
+            const bcol = effDelay < 2 ? 'rgba(61,220,132,.55)' : effDelay < 35 ? 'rgba(255,196,60,.85)' : 'rgba(255,77,94,.9)';
+            C[0].data.push({ x: t, y: effDelay }); C[0].backgroundColor.push(bcol);
+            C[1].data.push({ x: t, y: delayMs });
+            D[0].data.push({ x: t, y: lagErr });
+            D[1].data.push({ x: t, y: 2 }); D[2].data.push({ x: t, y: 5 }); D[3].data.push({ x: t, y: eT });
+            [errChart, tauChart, accChart, tcpChart, jntChart, commChart, delChart]
+                .forEach(c => c.data.datasets.forEach(d => trim(d.data)));
+            while (C[0].backgroundColor.length > C[0].data.length) C[0].backgroundColor.shift();
+            tabCharts[activeTab].forEach(c => c.update('none'));
+        }
+
+        /* =====================================================================
+           7 · WELD STATE MACHINE — scan → identify → approach → weld → finish
+        ===================================================================== */
+        let mode = 'manual', phase = 'idle', weldT = 0, progress = 0, weldDur = SEAM_LEN / .05;
+        let subPhase = 'dwell', ptIdx = 0, spotsDone = 0, arcActive = false;
+        let scanIdx = -1; const scanSamples = [];
+        let detResult = null;
+        const startTcp = new THREE.Vector3(), phaseFrom = new THREE.Vector3();
+        const led = document.getElementById('led'),
+            stateTxt = document.getElementById('stateTxt'), ctrlPanel = document.getElementById('controls');
+        function setState(txt, ledCls) {
+            stateTxt.textContent = txt;
+            led.className = 'led' + (ledCls ? ' ' + ledCls : '');
+        }
+        function scanStart() {
+            scanSamples.length = 0; scanIdx = -1;
+            for (let i = 0; i < SCAN_N * 3; i++) spArr[i] = -100;
+            spGeo.attributes.position.needsUpdate = true;
+            scanPts.visible = true;
+            laser.visible = true; laserCore.visible = true; scanDot.visible = false;
+            resetVision(); clearDet();
+        }
+        function startWeld() {
+            if (mode === 'weld') return;
+            mode = 'weld'; weldT = 0; progress = 0;
+            subPhase = 'dwell'; ptIdx = 0; spotsDone = 0;
+            fkTCP(q, startTcp); phaseFrom.copy(startTcp);
+            hist.length = 0; trailReset();
+            if (weldType === 'auto') { phase = 'toScan'; weldDur = SEAM_LEN / .05; }
+            else {
+                phase = 'approach';
+                weldDur = weldType === 'point' ? PT_TOTAL : (weldType === 'arc' ? ARC_LEN : SEAM_LEN) / .05;
+            }
+            if (beadMesh) {
+                beadMesh.visible = false; beadMesh.scale.z = .0001;
+                if (beadMode === 'range') beadMesh.geometry.setDrawRange(0, 0);
+            }
+            spotDots.forEach(d => { seamGroup.remove(d); d.geometry.dispose(); d.material.dispose(); });
+            spotDots.length = 0;
+            ctrlPanel.classList.add('locked');
+            runBtn.disabled = true; runBtn.classList.add('welding');
+        }
+        function weldTarget() {
+            const p0 = weldType === 'point' ? PT_PTS[0]
+                : weldType === 'arc' ? pathArc(0, new THREE.Vector3())
+                    : SEAM_A;
+            if (phase === 'toScan') {
+                const k = Math.min(1, weldT / 1.2), s = k * k * (3 - 2 * k);
+                return V2.copy(phaseFrom).lerp(SCAN_POSE, s);
+            }
+            if (phase === 'scan' || phase === 'identify') return V2.copy(SCAN_POSE);
+            if (phase === 'approach') {
+                const k = Math.min(1, weldT / 1.4), s = k * k * (3 - 2 * k);
+                return V2.copy(phaseFrom).lerp(p0, s);
+            }
+            if (weldType === 'point') {
+                if (phase !== 'weld') { return V2.copy(PT_PTS[PT_N - 1]); }
+                let tw = weldT;
+                for (let i = 0; i < PT_N; i++) {
+                    if (tw < PT_DWELL) {
+                        ptIdx = i; subPhase = 'dwell'; progress = (i + tw / PT_DWELL) / PT_N;
+                        return V2.copy(PT_PTS[i]);
+                    }
+                    tw -= PT_DWELL;
+                    if (i < PT_N - 1) {
+                        if (tw < PT_MOVE) {
+                            ptIdx = i; subPhase = 'move';
+                            const k = tw / PT_MOVE, s = k * k * (3 - 2 * k);
+                            progress = (i + 1) / PT_N;
+                            return V2.copy(PT_PTS[i]).lerp(PT_PTS[i + 1], s);
+                        }
+                        tw -= PT_MOVE;
+                    }
+                }
+                ptIdx = PT_N - 1; subPhase = 'dwell'; progress = 1;
+                return V2.copy(PT_PTS[PT_N - 1]);
+            }
+            if (phase === 'weld') {
+                const len = weldType === 'arc' ? ARC_LEN : SEAM_LEN;
+                const s = Math.min(weldT * .05, len);
+                progress = s / len;
+                return (weldType === 'arc' ? pathArc : pathLinear)(s, V2);
+            }
+            return V2.copy(SEAM_B);
+        }
+        runBtn.addEventListener('click', startWeld);
+
+        /* =====================================================================
+           8 · CONTROL LOOP
+        ===================================================================== */
+        const dqDes = new Float64Array(6);
+        let simT = 0, qdd2s = 0, qdd2v = 0, qd2prev = 0, tcpSpeed = 0, satFlag = false;
+        const tcpNow = new THREE.Vector3(), tcpPrev = new THREE.Vector3();
+        const manualTargetTcp = new THREE.Vector3();
+
+        function plantStep(h, useIK) {
+            for (let i = 0; i < 6; i++) {
+                let a;
+                if (useIK) {
+                    a = (dqDes[i] - qd[i]) / TJ;
+                    if (q[i] > Q_LIM[i]) a += (Q_LIM[i] - q[i]) * 220;
+                    if (q[i] < -Q_LIM[i]) a += (-Q_LIM[i] - q[i]) * 220;
+                } else {
+                    a = (qCmd[i] - q[i]) * KS - qd[i] * KD;
+                }
+                qd[i] += a * h;
+                qd[i] = Math.max(-QD_MAX, Math.min(QD_MAX, qd[i]));
+                q[i] += qd[i] * h;
+                if (q[i] > Q_LIM[i]) { q[i] = Q_LIM[i]; if (qd[i] > 0) qd[i] = 0; }
+                if (q[i] < -Q_LIM[i]) { q[i] = -Q_LIM[i]; if (qd[i] < 0) qd[i] = 0; }
+            }
+        }
+        function weldStep(h) {
+            weldT += h;
+            const target = weldTarget();
+            fkTCP(q, V0);
+            const delayed = sampleHist(simT - delayMs / 1000);
+            Ve.subVectors(target, delayed);
+            resolvedRate(Ve, dqDes);
+            plantStep(h, true);
+        }
+        function manualStep(h) { plantStep(h, false); }
+
+        /* =====================================================================
+           9 · MAIN LOOP
+        ===================================================================== */
+        const clock = new THREE.Clock();
+        let chartAcc = 0, prevPhase = 'idle';
+        const $ = id => document.getElementById(id);
+
+        fkTCP(q, tcpPrev); lastTCP.copy(tcpPrev);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), .05);
+            simT += dt;
+
+            /* ---- integrate ---- */
+            if (mode === 'weld') {
+                for (let k = 0; k < 2; k++) weldStep(dt / 2);
+
+                /* laser profilometry sampling */
+                if (phase === 'scan') {
+                    const lt = Math.min(1, weldT / SCAN_DUR);
+                    const zl = SCAN_Y0 + lt * SCAN_SPAN;
+                    laser.position.z = zl; laserCore.position.z = zl;
+                    const ti = Math.min(SCAN_N - 1, Math.floor(lt * SCAN_N));
+                    while (scanIdx < ti) {
+                        scanIdx++;
+                        const y = SCAN_Y0 + scanIdx * (SCAN_SPAN / (SCAN_N - 1));
+                        const off = measureProfile(y);
+                        scanSamples.push({ y, off });
+                        const i3 = scanIdx * 3;
+                        if (off !== null) {
+                            spArr[i3] = .42 + off; spArr[i3 + 1] = .016; spArr[i3 + 2] = y;
+                            scanDot.visible = true; scanDot.position.set(.42 + off, .0145, y);
+                            scanChart.data.datasets[0].data.push({ x: y * 1000, y: off * 1000 });
+                            scanChart.update('none');
+                        } else {
+                            spArr[i3] = -100; spArr[i3 + 1] = -100; spArr[i3 + 2] = -100;
+                            scanDot.visible = false;
+                        }
+                    }
+                    spGeo.attributes.position.needsUpdate = true;
+                }
+
+                /* phase transitions */
+                if (phase === 'toScan' && weldT >= 1.2) { phase = 'scan'; weldT = 0; scanStart(); }
+                else if (phase === 'scan' && weldT >= SCAN_DUR) {
+                    laser.visible = false; laserCore.visible = false; scanDot.visible = false;
+                    classify(); phase = 'identify'; weldT = 0;
+                }
+                else if (phase === 'identify' && weldT >= .9) { phaseFrom.copy(SCAN_POSE); phase = 'approach'; weldT = 0; }
+                else if (phase === 'approach' && weldT >= 1.4) { phase = 'weld'; weldT = 0; }
+                else if (phase === 'weld' && weldT >= weldDur) { phase = 'finish'; weldT = 0; progress = 1; subPhase = 'dwell'; }
+                else if (phase === 'finish' && weldT >= .8) {
+                    phase = 'idle'; mode = 'manual';
+                    ctrlPanel.classList.remove('locked');
+                    runBtn.disabled = false; runBtn.classList.remove('welding');
+                    runBtn.innerHTML = runLabel();
+                    syncSlidersToPose();
+                }
+            } else {
+                for (let k = 0; k < 2; k++) manualStep(dt / 2);
+            }
+            setJoints(q);
+            tcpObj.getWorldPosition(tcpNow);
+            pushHist(simT, tcpNow); lastTCP.copy(tcpNow);
+            tcpSpeed = tcpNow.distanceTo(tcpPrev) / Math.max(dt, 1e-4); tcpPrev.copy(tcpNow);
+
+            /* ---- reference & tracking error ---- */
+            let target;
+            if (mode === 'weld') {
+                target = weldTarget();
+                targetMark.position.copy(target); targetMark.visible = true;
+                if (phase === 'approach' || phase === 'weld') trailPush(tcpNow);
+            } else {
+                fkTCP(qCmd, manualTargetTcp); target = manualTargetTcp;
+                targetMark.visible = false;
+            }
+            Ve.subVectors(target, tcpNow);
+            const eTot = Ve.length() * 1000;
+            const ex = Ve.x * 1000, ey = Ve.z * 1000, ez = Ve.y * 1000;
+
+            arcActive = mode === 'weld' && phase === 'weld' &&
+                (weldType !== 'point' || subPhase === 'dwell');
+
+            const bx = tcpNow.x * 1000, by = tcpNow.z * 1000, bz = tcpNow.y * 1000;
+
+            /* ---- τ₂ / q̈₂ ---- */
+            const qdd2raw = (qd[1] - qd2prev) / Math.max(dt, 1e-4); qd2prev = qd[1];
+            qdd2s += (qdd2raw - qdd2s) * Math.min(1, 10 * dt);
+            qdd2v += (qdd2raw - qdd2v) * Math.min(1, 25 * dt);
+            let tau2 = I2 * qdd2s + (antigrav ? 0 : G2());
+            satFlag = Math.abs(tau2) > 75;
+            const tau2sat = Math.max(-75, Math.min(75, tau2));
+
+            /* ---- bead / spots / progress ---- */
+            if (mode === 'weld' && (phase === 'weld' || phase === 'finish')) {
+                if (beadMode === 'scale' && beadMesh) { beadMesh.visible = true; beadMesh.scale.z = Math.max(.0001, progress); }
+                else if (beadMode === 'range' && beadMesh) {
+                    beadMesh.visible = true;
+                    beadMesh.geometry.setDrawRange(0, Math.floor(progress * beadIdxTotal / 6) * 6);
+                }
+            }
+            if (weldType === 'point') {
+                const done = Math.min(PT_N, Math.floor(progress * PT_N + 1e-6));
+                while (spotsDone < done) { addSpotDot(spotsDone); spotsDone++; }
+                spotRings.forEach((r, i) => {
+                    const active = mode === 'weld' && phase === 'weld' && subPhase === 'dwell' && i === ptIdx;
+                    r.material.color.setHex(active ? 0xff7a1a : (i < spotsDone ? 0xffc36b : 0x35d0ff));
+                    r.material.opacity = active ? .95 : (i < spotsDone ? .75 : .4);
+                });
+                for (const d of spotDots) {
+                    const s = Math.min(1, (simT - d.userData.t0) * 6);
+                    d.scale.setScalar(.25 + .75 * s);
+                }
+            }
+            if (prevPhase !== phase) {
+                if (phase === 'weld')
+                    runBtn.innerHTML = weldType === 'point'
+                        ? `⚡&nbsp;&nbsp;SPOT WELDING… 0/${PT_N}`
+                        : '⚡&nbsp;&nbsp;ARC WELDING…';
+                prevPhase = phase;
+            }
+            if (mode === 'weld' && phase === 'weld') {
+                runBtn.innerHTML = weldType === 'point'
+                    ? `⚡&nbsp;&nbsp;SPOT WELDING… ${Math.min(spotsDone + (subPhase === 'dwell' ? 1 : 0), PT_N)}/${PT_N}`
+                    : `⚡&nbsp;&nbsp;ARC WELDING… ${(progress * 100) | 0}%`;
+            }
+
+            /* ---- arc & sparks ---- */
+            const emitting = arcActive ? 240 + (eTot > 12 ? 280 : 0)
+                : (tcpSpeed > .03 ? 120 : 0);
+            if (emitting > 0) emitSparks(tcpNow, emitting, dt);
+            updateSparks(dt);
+            const flick = .7 + Math.random() * .6;
+            arcGlow.material.opacity += (((arcActive ? 1 : 0) * (0.55 + 0.45 * Math.random())) - arcGlow.material.opacity) * .4;
+            arcGlow.scale.setScalar(flick);
+            arcLight.intensity += ((arcActive ? 2.2 * flick : 0) - arcLight.intensity) * .4;
+            if (seamHaloMesh) seamHaloMesh.material.opacity = (arcActive ? .30 : .16) + .08 * Math.sin(simT * 6);
+            warm.intensity = .3 + (arcActive ? .35 * flick : 0);
+
+            /* ---- status ---- */
+            if (mode === 'weld') {
+                if (phase === 'toScan') { setState('MOVING TO SCANNER', 'move'); runBtn.innerHTML = '⟶&nbsp;&nbsp;SCANNING POSE…'; }
+                else if (phase === 'scan') { setState(`LASER SCAN · ${Math.min(scanIdx + 1, SCAN_N)}/${SCAN_N}`, 'move'); runBtn.innerHTML = '◎&nbsp;&nbsp;SCANNING SEAM…'; }
+                else if (phase === 'identify') { setState(`IDENTIFIED · ${WTYPE[weldType].label} ${Math.round((detResult?.conf || 0) * 100)}%`, 'done'); runBtn.innerHTML = '✔&nbsp;&nbsp;SEAM IDENTIFIED'; }
+                else if (phase === 'approach') { setState('MOVING TO SEAM', 'move'); runBtn.innerHTML = '⟶&nbsp;&nbsp;MOVING TO SEAM…'; }
+                else if (phase === 'weld') {
+                    if (weldType === 'point')
+                        setState(`SPOT WELDING · ${Math.min(ptIdx + 1, PT_N)}/${PT_N}`, 'weld');
+                    else setState('ARC WELDING · ' + (progress * 100 | 0) + '%', 'weld');
+                }
+                else if (phase === 'finish') { setState('COMPLETE ✓', 'done'); runBtn.innerHTML = '✔&nbsp;&nbsp;SEAM COMPLETE'; }
+            } else setState('MANUAL', '');
+
+            /* ---- delay metrics ---- */
+            const lagErr = tcpNow.distanceTo(sampleHist(simT - delayMs / 1000)) * 1000;
+            const effDelay = delayMs === 0 ? Math.random() * .6
+                : delayMs + (Math.random() - .5) * delayMs * .14;
+
+            /* ---- dashboards ---- */
+            chartAcc += dt;
+            if (chartAcc >= .06) {
+                chartAcc = 0;
+                pushSample(simT, eTot, ex, ey, ez, tau2sat, qdd2v,
+                    bx, by, bz, q[0] / DEG, q[1] / DEG, q[2] / DEG, lagErr, effDelay);
+                $('errBadge').textContent = eTot.toFixed(2) + ' mm';
+                $('tauBadge').textContent = tau2.toFixed(1) + ' N·m';
+                $('accBadge').textContent = qdd2v.toFixed(1) + ' rad/s²';
+                $('tcpBadge').textContent = 'Y ' + by.toFixed(1) + ' mm';
+                $('satBadge').hidden = !satFlag;
+                $('commBadge').textContent = effDelay.toFixed(1) + ' ms';
+                $('delBadge').textContent = lagErr.toFixed(2) + ' mm';
+            }
+            $('tx').textContent = (bx / 1000).toFixed(3);
+            $('ty').textContent = (by / 1000).toFixed(3);
+            $('tz').textContent = (bz / 1000).toFixed(3);
+            $('terr').textContent = eTot.toFixed(1) + ' mm';
+            $('ttau').textContent = tau2.toFixed(1) + ' N·m';
+            $('tprog').textContent =
+                mode === 'weld' ? (phase === 'scan' ? `${Math.min(scanIdx + 1, SCAN_N)}/${SCAN_N}`
+                    : phase === 'identify' ? '✓'
+                        : weldType === 'point' ? `${spotsDone}/${PT_N}`
+                            : ((progress * 100 | 0) + '%'))
+                    : '—';
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        setJoints(q); animate();
+    </script>
+</body>
+
+</html>
