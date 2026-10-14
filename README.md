@@ -1,10 +1,14 @@
 # 🦾 ABB IRB-120 6-DOF Robotic Welding Control & Digital Twin
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-brightgreen?logo=github)](https://mithunyechuru.github.io/Industrial-Manipulator-Modeling-Adaptive-Control/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![Three.js](https://img.shields.io/badge/Three.js-r128-black.svg?logo=three.js&logoColor=white)](https://threejs.org/)
 [![Chart.js](https://img.shields.io/badge/Chart.js-v4.4.1-FF6384.svg?logo=chart.js&logoColor=white)](https://www.chartjs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Robotics](https://img.shields.io/badge/Robotics-ABB%20IRB--120-orange.svg)](https://new.abb.com/products/robotics/industrial-robots/irb-120)
+
+> 🚀 **Public WebGL Live Demo**: Experience the 3D digital twin directly in your browser without any installation:  
+> 👉 **[https://mithunyechuru.github.io/Industrial-Manipulator-Modeling-Adaptive-Control/](https://mithunyechuru.github.io/Industrial-Manipulator-Modeling-Adaptive-Control/)**
 
 A high-fidelity **Robotic Welding Control System & 3D WebGL Digital Twin** for the **ABB IRB-120 6-DOF industrial manipulator**. This project models kinematics, rigid-body dynamics, quintic trajectory planning, communication latency instability, torque saturation limits, and adaptive supervisory damping for automated weld seams.
 
@@ -198,12 +202,14 @@ This executes:
 ## 📂 Repository Structure
 
 ```
-noo-simple-Robot-Welding-Control/
+Industrial-Manipulator-Modeling-Adaptive-Control/
+├── index.html                           # Main entrypoint for GitHub Pages WebGL 3D Twin
+├── robotics.html                        # Standalone 3D Digital Twin & telemetry application
 ├── abb_irb120_6dof_welding_dataset.csv   # High-resolution 200 Hz experimental dataset
 ├── ai_robotics_2026.py                  # Complete mathematical engine & simulation scripts
-├── robotics.html                        # 3D WebGL Digital Twin & telemetry application
 ├── requirements.txt                     # Python scientific computing dependencies
 ├── .gitignore                           # Git ignore rules for Python, data science & OS files
+├── LICENSE                              # MIT License
 └── README.md                            # Comprehensive technical documentation & guide
 ```
 
